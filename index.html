@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>RayMarchingDemo</title>
+    <script src="index.js"></script>
+    <style type="text/css">
+        canvas {
+            border: 1px solid black;
+        }
+    </style>
+</head>
+<body>
+<canvas id="canvas" width="1024" height="1024"></canvas>
+<script>
+    document.addEventListener('keydown', onKeyPress);
+    document.addEventListener('mousemove', onMouseMove)
+    fillWorldWithObjects();
+    render();
+</script>
+</body>
+</html>
