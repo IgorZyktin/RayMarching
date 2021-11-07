@@ -1,10 +1,11 @@
 const WIDTH = 1024;
 const HEIGHT = 1024;
-const STEP_SIZE = 30;
+const STEP_SIZE = 20;
 const CURSOR_SIZE = 10;
-const NUM_OBJECTS = 1;
+const NUM_OBJECTS = 10;
 const OBJECT_SIZE = 20;
-
+const CURSOR_COLOR = 'rgba(149,0,255,0.5)';
+const THRESHOLD = 0.1;
 let objects = [];
 
 let cursor = {
@@ -14,11 +15,8 @@ let cursor = {
     size: CURSOR_SIZE,
     render: function (ctx) {
         // draw cursor
+        renderCircle(ctx, this.x, this.y, this.size, 'blue')
         ctx.strokeStyle = 'black';
-        ctx.fillStyle = 'blue';
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.size, 0, 2 * Math.PI);
-        ctx.fill();
         ctx.stroke();
     }
 };
@@ -34,40 +32,34 @@ let target = {
         ctx.moveTo(cursor.x, cursor.y);
         ctx.lineTo(this.x, this.y);
         ctx.stroke();
+        renderCircle(ctx, this.x, this.y, 2, 'red')
+        ctx.strokeStyle = 'black';
+        ctx.stroke();
     }
 }
 
 
 function onKeyPress(event) {
     // handle button press
-    if (event.key === 'a') cursor.x -= STEP_SIZE;
-    else if (event.key === 's') cursor.y += STEP_SIZE;
-    else if (event.key === 'w') cursor.y -= STEP_SIZE;
-    else if (event.key === 'd') cursor.x += STEP_SIZE;
-
-    cursor.x = Math.min(cursor.x, WIDTH);
-    cursor.y = Math.min(cursor.y, HEIGHT);
-    cursor.x = Math.max(cursor.x, 0);
-    cursor.y = Math.max(cursor.y, 0);
-
+    if (event.key === 'a') target.x -= STEP_SIZE;
+    else if (event.key === 's') target.y += STEP_SIZE;
+    else if (event.key === 'w') target.y -= STEP_SIZE;
+    else if (event.key === 'd') target.x += STEP_SIZE;
     render();
 }
 
 
 function onMouseMove(event) {
     // handle mouse move
-    target.x = event.clientX;
-    target.y = event.clientY;
-
+    cursor.x = event.clientX;
+    cursor.y = event.clientY;
     render();
 }
 
 
 function makeRandomObject() {
     // make something that can be rendered
-    let num = Math.round(Math.random() * 5);
-    if (num <= 2) return makeRandomCircle();
-    return makeRandomNSided(num);
+    return makeRandomCircle();
 }
 
 
@@ -102,11 +94,9 @@ function getRandomY() {
 }
 
 
-function getAngleBetween(cx, cy, x, y) {
+function getAngleBetween(cy, cx, y, x) {
     // calculate angle between two points in space
-    // TODO
-    let angle = Math.atan2(y - cy, x - cx) * 180 / Math.PI;
-    return angle;
+    return Math.atan2(cy - y, cx - x) * 180 / Math.PI;
 }
 
 
@@ -127,37 +117,14 @@ function makeRandomCircle() {
         },
         getClosest(point) {
             // get closest to the given point inside our shape
-            // TODO
-            let angle = getAngleBetween(this.x, this.y, point.x, point.y);
-            console.log(`x=${this.x}, y=${this.y}, cx=${point.x}, cy=${point.y}, angle=${angle}`)
-            // ????????????????????????????????????????????????????????????????
-            let closest;
-            if (point.x >= this.x && point.y >= this.y)
-                closest = {
-                    x: this.x + this.size / 2,
-                    y: this.y + this.size / 2
-                }
-
-            else if (point.x >= this.x && point.y < this.y)
-                closest = {
-                    x: this.x + this.size / 2,
-                    y: this.y - this.size / 2
-                }
-
-            else if (point.x < this.x && point.y >= this.y)
-                closest = {
-                    x: this.x - this.size / 2,
-                    y: this.y + this.size / 2
-                }
-
-            else
-                closest = {
-                    x: this.x - this.size / 2,
-                    y: this.y - this.size / 2
-                }
-            // ????????????????????????????????????????????????????????????????
-
-            return closest;
+            let angle = getAngleBetween(this.y, point.x, point.y, this.x);
+            return rotate(
+                this.x,
+                this.y,
+                this.x + this.size,
+                this.y,
+                angle
+            );
         }
     }
 }
@@ -181,44 +148,6 @@ function getClosestPoint(given_vertexes, point) {
 }
 
 
-function makeRandomNSided(sides) {
-    // make triangle, square, etc
-    let x = getRandomX();
-    let y = getRandomY();
-    let size = getRandomObjectSize() * 2;
-    let per_point = 360 / sides;
-    let vertexes = [];
-    for (let i = 0; i < sides; i++) {
-        let new_point = rotate(x, y, x, y - size, i * per_point);
-        vertexes.push(new_point)
-    }
-    return {
-        x: x,
-        y: y,
-        size: size,
-        vertexes: vertexes,
-        render: function (ctx) {
-            ctx.fillStyle = 'pink';
-            ctx.beginPath();
-            ctx.moveTo(this.vertexes[0].x, this.vertexes[0].y)
-            for (let i = 1; i < this.vertexes.length; i++) {
-                ctx.lineTo(this.vertexes[i].x, this.vertexes[i].y)
-            }
-            ctx.lineTo(this.vertexes[0].x, this.vertexes[0].y)
-            ctx.fill();
-            ctx.stroke();
-        },
-        getClosest(point) {
-            // get closest to the given point inside our shape
-            // ????????????????????????????????????????????????????????????????
-            let closest = this.vertexes[0];
-            // ????????????????????????????????????????????????????????????????
-            return closest;
-        }
-    }
-}
-
-
 function fillWorldWithObjects() {
     // create some stuff to work with
     for (let i = 0; i < NUM_OBJECTS; i++) {
@@ -238,6 +167,30 @@ function renderCircle(ctx, x, y, radius, color) {
 }
 
 
+function refresh() {
+    // starting point
+    render();
+}
+
+
+function rayMarching(ctx, current_x, current_y) {
+    // find closes point to the target
+    let all_closest = [];
+    for (let i = 0; i < objects.length; i++) {
+        objects[i].render(ctx);
+        let closest = objects[i].getClosest({x: cursor.x, y: cursor.y});
+        all_closest.push(closest);
+        renderCircle(ctx, closest.x, closest.y, 5, 'red');
+    }
+    let the_most_close = getClosestPoint(all_closest, {
+        x: cursor.x,
+        y: cursor.y
+    });
+    let radius = getDistance(cursor.x, cursor.y, the_most_close.x, the_most_close.y);
+    renderCircle(ctx, cursor.x, cursor.y, radius, CURSOR_COLOR);
+}
+
+
 function render() {
     // main rendering function
     let canvas = document.getElementById('canvas');
@@ -247,17 +200,7 @@ function render() {
     ctx.strokeStyle = 'black'
     ctx.fillStyle = 'pink'
 
-    let all_closest = [];
-    for (let i = 0; i < objects.length; i++) {
-        objects[i].render(ctx);
-        let closest = objects[i].getClosest({x: cursor.x, y: cursor.y});
-        all_closest.push(closest);
-        renderCircle(ctx, closest.x, closest.y, 5, 'red');
-    }
-    let the_most_close = getClosestPoint(all_closest, {x: cursor.x, y: cursor.y});
-    let radius = getDistance(cursor.x, cursor.y, the_most_close.x, the_most_close.y);
-    renderCircle(ctx, cursor.x, cursor.y, radius, 'purple');
-
+    rayMarching(ctx, cursor.x, cursor.y);
     target.render(ctx);
     cursor.render(ctx);
 }
