@@ -4,8 +4,9 @@ const STEP_SIZE = 20;
 const CURSOR_SIZE = 10;
 const NUM_OBJECTS = 10;
 const OBJECT_SIZE = 20;
-const CURSOR_COLOR = 'rgba(149,0,255,0.5)';
+const CURSOR_COLOR = 'rgba(149,0,255,0.09)';
 const THRESHOLD = 0.1;
+const MAX_DEPTH = 100;
 let objects = [];
 
 let cursor = {
@@ -113,7 +114,7 @@ function makeRandomCircle() {
         y: getRandomY(),
         size: getRandomObjectSize(),
         render: function (ctx) {
-            renderCircle(ctx, this.x, this.y, this.size, 'pink');
+            renderCircle(ctx, this.x, this.y, this.size, 'brown');
         },
         getClosest(point) {
             // get closest to the given point inside our shape
@@ -173,21 +174,56 @@ function refresh() {
 }
 
 
-function rayMarching(ctx, current_x, current_y) {
+function findIntersection(current_x, current_y, target_x, target_y, radius) {
+    // find where circle intersect line
+    let angle = getAngleBetween(current_y, current_x, target_y, target_x)
+    let radians = (Math.PI / 180) * angle
+    let sin = Math.sin(radians);
+    let cos = Math.cos(radians);
+    let height = sin * radius;
+    let width = cos * radius;
+    return {
+        x: current_x - width,
+        y: current_y - height
+    };
+}
+
+
+function rayMarching(ctx, current_x, current_y, target_x, target_y, depth) {
     // find closes point to the target
     let all_closest = [];
     for (let i = 0; i < objects.length; i++) {
         objects[i].render(ctx);
-        let closest = objects[i].getClosest({x: cursor.x, y: cursor.y});
+        let closest = objects[i].getClosest({x: current_x, y: current_y});
         all_closest.push(closest);
-        renderCircle(ctx, closest.x, closest.y, 5, 'red');
+        // renderCircle(ctx, closest.x, closest.y, 5, 'red');
     }
-    let the_most_close = getClosestPoint(all_closest, {
-        x: cursor.x,
-        y: cursor.y
+
+    all_closest.push({x: target_x, y: target_y})
+
+    let most_close = getClosestPoint(all_closest, {
+        x: current_x,
+        y: current_y
     });
-    let radius = getDistance(cursor.x, cursor.y, the_most_close.x, the_most_close.y);
-    renderCircle(ctx, cursor.x, cursor.y, radius, CURSOR_COLOR);
+    let radius = getDistance(current_x, current_y, most_close.x, most_close.y);
+    renderCircle(ctx, current_x, current_y, radius, CURSOR_COLOR);
+
+    let delta = getDistance(current_x, current_y, target_x, target_y);
+    let intersection = findIntersection(current_x, current_y,
+        target_x, target_y, radius)
+
+    if (depth > MAX_DEPTH) return;
+
+    if (delta > THRESHOLD) {
+        // not yet reached the target
+        renderCircle(ctx, intersection.x, intersection.y,
+            2, 'blue');
+        rayMarching(ctx, intersection.x, intersection.y,
+            target_x, target_y, depth + 1)
+    } else {
+        // got hit
+        renderCircle(ctx, target_x, target_y, 10, 'red');
+    }
 }
 
 
@@ -200,7 +236,7 @@ function render() {
     ctx.strokeStyle = 'black'
     ctx.fillStyle = 'pink'
 
-    rayMarching(ctx, cursor.x, cursor.y);
+    rayMarching(ctx, cursor.x, cursor.y, target.x, target.y, 0);
     target.render(ctx);
     cursor.render(ctx);
 }
